@@ -1,0 +1,22 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio 2013
+VisualStudioVersion = 12.0.30501.0
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "XMLAnalysis2", "XMLAnalysis2\XMLAnalysis2.csproj", "{FCD468B7-323E-4C27-9500-9678D7F6E884}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{FCD468B7-323E-4C27-9500-9678D7F6E884}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{FCD468B7-323E-4C27-9500-9678D7F6E884}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{FCD468B7-323E-4C27-9500-9678D7F6E884}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{FCD468B7-323E-4C27-9500-9678D7F6E884}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+EndGlobal
