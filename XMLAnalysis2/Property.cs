@@ -14,6 +14,7 @@ namespace XMLAnalysis2
         {
             string[] type = { "type", "INT", "VARCHAR", "DATE" };
             string[] nullable = { "NULL", "NULL", "NOT NULL" };
+            string[] isPK = { "isPK", "true", "false" };
             List<string[]> propertys = new List<string[]>();
             propertys.Add(type);
             propertys.Add(nullable);
