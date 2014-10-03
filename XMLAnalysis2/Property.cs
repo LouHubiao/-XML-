@@ -18,6 +18,7 @@ namespace XMLAnalysis2
             List<string[]> propertys = new List<string[]>();
             propertys.Add(type);
             propertys.Add(nullable);
+            propertys.Add(isPK);
             propertyList = new List<Property>();
             foreach (string[] property in propertys) {
                 string propertyName = property[0];

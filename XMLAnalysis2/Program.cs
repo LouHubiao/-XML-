@@ -11,59 +11,74 @@ namespace XMLAnalysis2
     {
         static void Main(string[] args)
         {
-            XMLAnalysisClass analysis = new XMLAnalysisClass();
-            XmlNode root = analysis.ReadXMLFile("bookstore.xml");
-            analysis.AddNode(root, "column1", "123", "type", "INT", "NULL", "NOT NULL");
-            analysis.AddNode(root, "column2", "hello", "type", "VARCHAR", "NULL", "NULL");
-            analysis.DeleteNode(root, "column1");
-            analysis.UpdateNode(root, "column2", "lou");
-            string findValue = analysis.SearchNode(root, "column2");
+            XMLAnalysisClass analysis = new XMLAnalysisClass("bookstore.xml");
+            analysis.AddNode("extraPK", "type", "INT", "NULL", "NOT NULL", "isPK", "true");
+            analysis.AddNode("name", "type", "VARCHAR", "NULL", "NOT NULL", "isPK", "false");
+            analysis.AddNode("age", "type", "INT", "NULL", "NOT NULL", "isPK", "false");
+            analysis.AddNodeValues("1", "louhubiao", "23");
+            analysis.AddNodeValues("2", "cuiziki", "23");
+            analysis.DeleteNode("1");
+            analysis.UpdateNode("2", "age", "22");
+            string findValue = analysis.SearchNode("2", "name");
             Console.WriteLine(findValue);
-            analysis.CleanFile(root);
+            analysis.CleanFile();
             analysis.document.Save("bookstore.xml");
         }
 
         class XMLAnalysisClass
         {
+            #region 全局初始化
             //
             public XmlDocument document;
             //属性list，保存预设的属性名和属性值选项；
             public PropertyList propertys;
-            
-            public XMLAnalysisClass()
+            //XML文档的根；
+            public XmlElement rootElement;
+            //常量主键列名
+            public const string EXTRAPK = "extraPK";
+
+            public XMLAnalysisClass(string filePath)
             {
                 document = new XmlDocument();
                 propertys = new PropertyList();
-            }
-            
-            //打开xml文件，获取xml文件的根节点；
-            public XmlNode ReadXMLFile(string filePath)
-            {
                 document.Load(filePath);    //load时要小心，文件不对就会抛出异常；
-                XmlNode root = (XmlNode)document.DocumentElement;
-                return root;
+                rootElement = document.DocumentElement;
             }
 
+            #endregion
+
             #region 工具函数
-            //根据列名获取对应xml中的元素节点；
-            XmlElement getElementFromColumName(XmlNode root, string theColumnName)
+            //根据列名获取对应xml中的元素节点，参数列名；
+            XmlElement GetElementFromColumName(string theColumnName)
             {
-                if (root.FirstChild != null)
+                if (rootElement.FirstChild != null)
                 {
-                    XmlNodeList nodeList = root.ChildNodes;
+                    XmlNodeList nodeList = rootElement.ChildNodes;
                     foreach (XmlNode node in nodeList)
                     {
-                        XmlElement element = (XmlElement)node;
-                        if (element.Name == theColumnName)
+                        if (node.Name == theColumnName)
                         {
-                            return element;
+                            return (XmlElement)node;
                         }
                     }
                 }
                 return null;
             }
 
-            //验证属性名是否合法
+            //根据属性名得到属性XmlAttribute，参数节点，属性名
+            XmlAttribute GetAttributeFromPropName(XmlElement element, string propertyName)
+            {
+                foreach (XmlAttribute attribute in element.Attributes)
+                {
+                    if (attribute.Name == propertyName)
+                    {
+                        return attribute;
+                    }
+                }
+                return null;
+            }
+
+            //验证属性名是否合法，参数属性名，属性值；
             bool IsPropertyLegal(string propertyName, string propertyValue)
             {
                 foreach (Property property in propertys.propertyList)
@@ -82,7 +97,7 @@ namespace XMLAnalysis2
                 return false;
             }
 
-            //验证插入数据是否合法
+            //验证插入数据是否合法，参数插入节点，插入值；
             bool IsAddValueLegal(XmlElement element, string theValue)
             {
                 foreach (XmlAttribute attribute in element.Attributes)
@@ -92,174 +107,186 @@ namespace XMLAnalysis2
                         if (attribute.Value == "INT")
                         {
                             int result;
-                            if (int.TryParse(theValue, out result) == false)
-                            {
-                                return false;
-                            }
+                            if (int.TryParse(theValue, out result) == false) { Console.WriteLine("IsAddValueLegal: error int value:%s", theValue); return false; }
                         }
                         else if (attribute.Name == "DATE")
                         {
                             DateTime dt;
-                            if (DateTime.TryParse(theValue, out dt) == false)
-                            {
-                                return false;
-                            }
+                            if (DateTime.TryParse(theValue, out dt) == false) { Console.WriteLine("IsAddValueLegal: error date value:%s", theValue); return false; }
                         }
                     }
                     else if (attribute.Name == "NULL" && attribute.Value == "NOT NULL")
                     {
-                        if (theValue == null || theValue == "NULL")
-                        {
-                            return false;
-                        } 
+                        if (theValue == null || theValue == "NULL") { Console.WriteLine("IsAddValueLegal: error unable NULL"); return false; } 
                     }
                     else if (attribute.Name == "isPK"&&attribute.Value=="true")
                     {
                         foreach (XmlNode valueNode in element.ChildNodes)
                         {
-                            if (valueNode.Value == theValue)
-                            {
-                                return false;
-                            }
+                            if (valueNode.Value == theValue) { Console.WriteLine("IsAddValueLegal: error PK value:%s",theValue); return false; }
                         }
                     }
                 }
                 return true;
             }
 
+            //根据传入的额外表主键找到XML文件中的位置（计数），参数主键节点，主键值；
+            int GetCountByKeyExtraPK(string key)
+            {
+                XmlElement element = GetElementFromColumName(EXTRAPK);
+                XmlNodeList nodelist = element.ChildNodes;
+                int count = 0;
+                for (int i = 0; i < nodelist.Count; i++)
+                {
+                    if (nodelist[i].InnerText == key)
+                        break;
+                    else
+                        count++;
+                }
+                if (count == nodelist.Count) { Console.WriteLine("GetCountByKeyExtraPK: error key:%s", key); return -1; }
+                return count;
+            }
+
+            //根据计数值找到其他节点中的对应数值
+            XmlElement GetElementByCount(XmlElement element, int count)
+            {
+                XmlNodeList nodelist = element.ChildNodes;
+                if (nodelist[count] != null)
+                {
+                    return (XmlElement)nodelist[count];
+                }
+                else { Console.WriteLine("GetValueByCount: error count:%d",count); return null; }
+            }
+
             #endregion
 
             #region 属性处理
             //添加节点属性，包括类型，是否允许空，是否为主键
-            public void AddProperty(XmlNode root, string theColumnName, string propertyName, string propertyValue)
+            public void AddProperty(string theColumnName, string propertyName, string propertyValue)
             {
-                XmlElement element = getElementFromColumName(root, theColumnName);
+                XmlElement element = GetElementFromColumName(theColumnName);
                 if (element == null) { Console.WriteLine("AddProperty: error theColumnName:%s", theColumnName); return; }
                 if (IsPropertyLegal(propertyName, propertyValue) == true)
                 {
                     foreach (XmlAttribute attribute in element.Attributes)
                     {
-                        if (attribute.Name == propertyName) { Console.WriteLine("AddProperty: error the propertyName:%s has exsit",propertyName); return; }
+                        if (attribute.Name == propertyName) { Console.WriteLine("AddProperty: error propertyName:%s",propertyName); return; }
                     }
                     element.SetAttribute(propertyName, propertyValue);
                 }
-                else { Console.WriteLine("UpdateProperty:propertyName:%s or propertyValue:%s is illegal", propertyName, propertyValue); return; }
+                else { Console.WriteLine("AddProperty:error propertyName:%s or propertyValue:%s", propertyName, propertyValue); return; }
             }
 
             //修改属性值
             public void UpdateProperty(XmlNode root, string theColumnName, string propertyName, string propertyValue)
             {
-                XmlElement element = getElementFromColumName(root, theColumnName);
+                XmlElement element = GetElementFromColumName(theColumnName);
                 if (element == null) { Console.WriteLine("UpdateProperty: error theColumnName:%s", theColumnName); return; }
                 if (IsPropertyLegal(propertyName, propertyValue) == true)
                 {
-                    if (element.Attributes[propertyName] != null)
-                    {
-                        element.Attributes[propertyName].InnerText = propertyValue;
-                    }
-                    else { Console.WriteLine("UpdateProperty:error propertyName:%s", propertyName); }
+                    XmlAttribute attribute = GetAttributeFromPropName(element, propertyName);
+                    if (attribute == null) { Console.WriteLine("UpdateProperty:error propertyName:%s", propertyName); return; }
+                    attribute.InnerText = propertyValue;
                 }
-                else { Console.WriteLine("UpdateProperty:propertyName:%s or propertyValue:%s is illegal", propertyName, propertyValue); return; }
+                else { Console.WriteLine("UpdateProperty:error propertyName:%s or propertyValue:%s", propertyName, propertyValue); return; }
             }
 
             //删除节点属性
             public void DeleteProperty(XmlNode root, string theColumnName, string propertyName)
             {
-                XmlElement element = getElementFromColumName(root, theColumnName);
+                XmlElement element = GetElementFromColumName(theColumnName);
                 if (element == null) { Console.WriteLine("DeleteProperty: error theColumnName:%s", theColumnName); return; }
-                foreach (XmlAttribute attribute in element.Attributes)
-                {
-                    if (attribute.Name == propertyName)
-                    {
-                        element.RemoveAttribute(propertyName);
-                        return;
-                    }
-                }
-                Console.WriteLine("DeleteProperty: error propertyName:%s", propertyName);
+                XmlAttribute attribute = GetAttributeFromPropName(element, propertyName);
+                if (attribute == null) { Console.WriteLine("DeleteProperty:error propertyName:%s", propertyName); return; }
+                element.RemoveAttribute(propertyName);
             }
 
             #endregion
 
             #region 增删改查
 
-            //添加节点，分三个步骤；
-            public void AddNode(XmlNode root, string theColumnName, string theValue, params string[] propertyParams)
+            //添加节点，参数节点名和节点属性；
+            public void AddNode(string theColumnName, params string[] propertyParams)
             {
-                AddNodeName(root, theColumnName);
+                if (theColumnName == null) { Console.WriteLine("AddNodeName: error the theColumnName is null"); return; }
+                XmlElement column = document.CreateElement(theColumnName);
+                rootElement.AppendChild(column);
+                //XmlElement value = document.CreateElement("Value");
+                //column.AppendChild(value);
+
+                if (propertyParams == null) return;
                 if (propertyParams.Length % 2 != 0) { Console.WriteLine("AddNode: error propertys.Length % 2 != 0 "); return; }
                 for (int i = 0; i < propertyParams.Length; i = i + 2)
                 {
-                    AddProperty(root, theColumnName, propertyParams[i], propertyParams[i + 1]);
+                    AddProperty(theColumnName, propertyParams[i], propertyParams[i + 1]);
                 }
-                AddNodeValue(root, theColumnName, theValue);
+            }
+            
+            //添加一行
+            public void AddNodeValues(params string[] valuePropertys)
+            {
+                XmlNodeList nodeList = rootElement.ChildNodes;
+                if (valuePropertys.Length != nodeList.Count) { Console.WriteLine("AddNodeValues: error valuePropertys.Length:%d", valuePropertys.Length); return; }
+                for(int i=0;i<valuePropertys.Length;i++)
+                {
+                    AddNodeValue(nodeList[i].Name, valuePropertys[i]);
+                }
             }
 
-            //添加节点的主干；
-            void AddNodeName(XmlNode root, string theColumnName)
+            //添加节点的值，参数新增列名，新增值；
+            public void AddNodeValue(string theColumnName, string theValue)
             {
-                if (theColumnName == null){ Console.WriteLine("AddNodeName: error the theColumnName is null"); return; }   
-                XmlElement column = document.CreateElement(theColumnName);
-                XmlElement value = document.CreateElement("Value");
-                column.AppendChild(value);
-                root.AppendChild(column);
-            }
-
-            //添加节点的值；
-            void AddNodeValue(XmlNode root, string theColumnName, string theValue)
-            {
-                XmlElement element = getElementFromColumName(root, theColumnName);
+                XmlElement element = GetElementFromColumName(theColumnName);
                 if (IsAddValueLegal(element, theValue) == true)
                 {
-                    XmlNode lastNode = element.LastChild;
-                    lastNode.InnerText = theValue;
-                }
-                else { Console.WriteLine("AddNodeValue:the value:%s is illegal", theValue); return; }
-            }
-
-            //删除节点，参数列名；
-            public void DeleteNode(XmlNode root, string theColumnName)
-            {
-                XmlElement element = getElementFromColumName(root, theColumnName);
-                if (element == null){ Console.WriteLine("DeleteNode:error theColumnName:%s", theColumnName); return;}
-                XmlElement value = (XmlElement)element.FirstChild;
-                if (value.Name == "Value")
-                {
-                    if (value.InnerText != null)
-                        value.InnerText = null;
-                }
-                else { Console.WriteLine("DeleteNode:no the Value element"); return; }
-            }
-
-            //更新节点，参数列名，更新值；
-            public void UpdateNode(XmlNode root, string theColumnName, string theValue)
-            {
-                XmlElement element = getElementFromColumName(root, theColumnName);
-                if (element != null)
-                {
-                    XmlElement value = (XmlElement)element.FirstChild;
+                    XmlElement value = document.CreateElement("Value");
                     value.InnerText = theValue;
+                    element.AppendChild(value);                    
                 }
-                else{ Console.WriteLine("UpdateNode:error theColumnName:%s", theColumnName); return;}
+                else { Console.WriteLine("AddNodeValue:error theValue:%s", theValue); return; }
+            }
+
+            //删除节点，参数主键值；
+            public void DeleteNode(string key)
+            {
+                int count = GetCountByKeyExtraPK(key);
+                if (count == -1) { Console.WriteLine("DeleteNode: error key:%s", key); }
+                XmlNodeList nodeList = rootElement.ChildNodes;
+                foreach (XmlNode node in nodeList)
+                {
+                    node.RemoveChild(node.ChildNodes[count]);
+                }
+            }
+
+            //更新节点，参数主键值，列名，更新值；
+            public void UpdateNode(string key, string theColumnName, string theValue)
+            {
+                int count = GetCountByKeyExtraPK(key);
+                if (count == -1) { Console.WriteLine("UpdateNode: error key:%s", key); return; }
+                XmlElement element = GetElementFromColumName(theColumnName);
+                if (element == null) { Console.WriteLine("UpdateNode:error theColumnName:%s", theColumnName); return; }
+                if (IsAddValueLegal(element, theValue) == true)
+                {
+                    element.ChildNodes[count].InnerText = theValue;
+                }
+                else { Console.WriteLine("UpdateNode:error theValue:%s", theValue); return; }
             }
 
             //查找值，参数列名；
-            public string SearchNode(XmlNode root, string theColumnName)
+            public string SearchNode(string key, string theColumnName)
             {
-                XmlElement element = getElementFromColumName(root, theColumnName);
-                if (element != null)
-                {
-                    XmlElement value = (XmlElement)element.FirstChild;
-                    return value.InnerText;
-                }
-                else{ Console.WriteLine("SearchNode:error theColumnName:%s", theColumnName); return null;}
+                int count = GetCountByKeyExtraPK(key);
+                if (count == -1) { Console.WriteLine("SearchNode: error key:%s", key); return null; }
+                XmlElement element = GetElementFromColumName(theColumnName);
+                if (element == null) { Console.WriteLine("SearchNode:error theColumnName:%s", theColumnName); return null; }
+                return element.ChildNodes[count].InnerText;
             }
 
             #endregion
 
             //清除xml文件中除了根节点以外的所有节点，用于测试；
-            public void CleanFile(XmlNode root)
+            public void CleanFile()
             {
-                XmlElement rootElement = (XmlElement)root;
                 rootElement.RemoveAll();
             }
 
